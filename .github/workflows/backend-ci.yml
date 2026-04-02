@@ -19,18 +19,48 @@ jobs:
       run:
         working-directory: backend
 
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: swiftuser
+          POSTGRES_PASSWORD: swiftpass
+          POSTGRES_DB: swiftstore
+        options: >-
+          --health-cmd "pg_isready -U swiftuser"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Actions with Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: backend/package-lock.json
+      - name: Setup Actions with Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-    - name: Install npm dependencies
-      run: npm ci
+      - name: Install npm dependencies
+        run: npm ci
 
-    - name: Run tests
-      run: npm test
+      - name: Wait for Postgres
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h localhost -p 5432 -U swiftuser; do
+            sleep 2
+          done
+
+      - name: Run tests
+        run: npm test
+        env:
+          SERVER_PORT: 3000
+          SERVER_HOST: 127.0.0.1
+          DB_HOST: localhost
+          DB_USER: swiftuser
+          DB_PASSWORD: swiftpass
+          DB_DATABASE: swiftstore
+          DB_PORT: 5432
